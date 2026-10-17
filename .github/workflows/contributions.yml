@@ -1,0 +1,43 @@
+name: contributions
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: contributions
+  cancel-in-progress: false
+jobs:
+  contribute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate commits
+        run: |
+          git config user.name "aethelreborn"
+          git config user.email "aethelreborn@users.noreply.github.com"
+          head_ts=$(git log -1 --format=%at)
+          today=$(( $(date -u +%s) / 86400 * 86400 ))
+          d=$(( head_ts / 86400 * 86400 ))
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$d" -ge "$today" ]; then
+            echo "already up to date"
+            exit 0
+          fi
+          if [ "$d" -ge "$today" ]; then
+            d=$(( today - 86400 ))
+          fi
+          while [ "$d" -lt "$today" ]; do
+            start=$(( d + 72000 ))
+            for m in $(seq 0 686); do
+              ts=$(( start + m * 60 ))
+              stamp=$(date -u -d "@$ts" "+%Y-%m-%d %H:%M:%S +0000")
+              msg=$(date -u -d "@$ts" "+Contribution: %Y-%m-%d %H:%M")
+              printf "%s\n" "$msg" > README.md
+              git add README.md
+              GIT_AUTHOR_DATE="$stamp" GIT_COMMITTER_DATE="$stamp" git commit -q -m "$msg"
+            done
+            d=$(( d + 86400 ))
+          done
+          git push origin HEAD:main
